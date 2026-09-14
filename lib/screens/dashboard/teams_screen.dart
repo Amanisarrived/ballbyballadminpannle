@@ -298,6 +298,41 @@ class _FilledSlotState extends State<_FilledSlot> {
     }
   }
 
+  Future<void> _editLogo() async {
+    final td = widget.teamData;
+    final url = await showDialog<String>(
+      context: context,
+      builder: (_) => _LogoDialog(
+        teamName: (td['name'] ?? '').toString(),
+        initial: (td['logo'] ?? '').toString(),
+      ),
+    );
+    if (url == null || !mounted) return;
+
+    try {
+      await FeaturedMatchService.setTeamLogo(
+        teamKey: widget.teamKey,
+        teamId: (td['teamId'] ?? '').toString(),
+        logo: url,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        backgroundColor: const Color(0xFF1A1A1A),
+        behavior: SnackBarBehavior.floating,
+        content: Text(url.isEmpty ? 'Logo removed' : 'Logo updated',
+            style: const TextStyle(color: _textPrimary)),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        backgroundColor: const Color(0xFF1A1A1A),
+        behavior: SnackBarBehavior.floating,
+        content: Text('Error: $e',
+            style: const TextStyle(color: Colors.redAccent)),
+      ));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final td = widget.teamData;
@@ -354,8 +389,114 @@ class _FilledSlotState extends State<_FilledSlot> {
             child: CircularProgressIndicator(
                 color: Colors.redAccent, strokeWidth: 1.5),
           )
-        else
+        else ...[
+          _SmallIconButton(icon: Icons.image_outlined, onTap: _editLogo),
+          const SizedBox(width: 4),
           _SmallIconButton(icon: Icons.close_rounded, onTap: _remove),
+        ],
+      ],
+    );
+  }
+}
+
+class _LogoDialog extends StatefulWidget {
+  final String teamName;
+  final String initial;
+  const _LogoDialog({required this.teamName, required this.initial});
+
+  @override
+  State<_LogoDialog> createState() => _LogoDialogState();
+}
+
+class _LogoDialogState extends State<_LogoDialog> {
+  late final TextEditingController _ctrl =
+      TextEditingController(text: widget.initial);
+  bool _previewError = false;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final url = _ctrl.text.trim();
+    return AlertDialog(
+      backgroundColor: _surface,
+      title: Text('Logo — ${widget.teamName}',
+          style: const TextStyle(color: _textPrimary, fontSize: 15)),
+      content: SizedBox(
+        width: 360,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: _surface2,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _border),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(11),
+                child: url.isNotEmpty && !_previewError
+                    ? Image.network(url,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted && !_previewError) {
+                              setState(() => _previewError = true);
+                            }
+                          });
+                          return const SizedBox.shrink();
+                        })
+                    : const Icon(Icons.image_not_supported_outlined,
+                        color: _textMuted),
+              ),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _ctrl,
+              autofocus: true,
+              style: const TextStyle(color: _textPrimary, fontSize: 13),
+              onChanged: (_) => setState(() => _previewError = false),
+              decoration: InputDecoration(
+                hintText: 'https://example.com/logo.png',
+                hintStyle: const TextStyle(color: _textMuted, fontSize: 12),
+                filled: true,
+                fillColor: _surface2,
+                isDense: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: _border),
+                ),
+              ),
+            ),
+            if (_previewError) ...[
+              const SizedBox(height: 8),
+              const Text('Could not load this image — check the URL.',
+                  style: TextStyle(color: Colors.redAccent, fontSize: 11)),
+            ],
+            const SizedBox(height: 8),
+            const Text(
+              'Saved for this team, so it reappears the next time they are featured.',
+              style: TextStyle(color: _textSecondary, fontSize: 11),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel', style: TextStyle(color: _textSecondary)),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+          onPressed: () => Navigator.pop(context, url),
+          child: const Text('Save'),
+        ),
       ],
     );
   }

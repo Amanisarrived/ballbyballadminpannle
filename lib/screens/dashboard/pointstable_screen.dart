@@ -42,7 +42,6 @@ class _PointsTableScreenState extends State<PointsTableScreen> {
     super.dispose();
   }
 
-  // ── Load from Firestore — only once ──────────────────────
   void _loadTable(PointsTable table) {
     if (_loaded) return;
     _loaded = true;
@@ -57,10 +56,8 @@ class _PointsTableScreenState extends State<PointsTableScreen> {
     });
   }
 
-  // ── Add group — letter based on current length ────────────
   void _addGroup() {
     setState(() {
-      // Use current length BEFORE adding to get next letter
       final nextLetter = String.fromCharCode(65 + _groups.length);
       _groups.add(TableGroup(groupName: 'Group $nextLetter', teams: []));
       _expandedGroup = _groups.length - 1;
@@ -76,7 +73,6 @@ class _PointsTableScreenState extends State<PointsTableScreen> {
   }
 
   void _renameGroup(int index, String name) {
-    // Update model without triggering full rebuild
     _groups[index] = _groups[index].copyWith(groupName: name);
   }
 
@@ -104,10 +100,21 @@ class _PointsTableScreenState extends State<PointsTableScreen> {
   }
 
   void _updateTeam(int gIdx, int tIdx, TeamStanding updated) {
-    // No setState — avoid rebuilding whole screen on every keystroke
     final teams = List<TeamStanding>.from(_groups[gIdx].teams);
     teams[tIdx] = updated;
     _groups[gIdx] = _groups[gIdx].copyWith(teams: teams);
+  }
+
+  // ── NEW: reorder teams within a group ────────────────────
+  void _reorderTeam(int groupIndex, int oldIndex, int newIndex) {
+    setState(() {
+      // ReorderableListView fires newIndex AFTER removal, so adjust
+      if (newIndex > oldIndex) newIndex -= 1;
+      final teams = List<TeamStanding>.from(_groups[groupIndex].teams);
+      final item = teams.removeAt(oldIndex);
+      teams.insert(newIndex, item);
+      _groups[groupIndex] = _groups[groupIndex].copyWith(teams: teams);
+    });
   }
 
   Future<void> _save() async {
@@ -186,6 +193,7 @@ class _PointsTableScreenState extends State<PointsTableScreen> {
                         onAddTeam: _addTeam,
                         onRemoveTeam: _removeTeam,
                         onUpdateTeam: _updateTeam,
+                        onReorderTeam: _reorderTeam, // ← NEW
                       ),
                     ),
                     Container(width: 1, color: _border),
@@ -299,6 +307,7 @@ class _LeftPanel extends StatelessWidget {
   final ValueChanged<int> onAddTeam;
   final void Function(int, int) onRemoveTeam;
   final void Function(int, int, TeamStanding) onUpdateTeam;
+  final void Function(int, int, int) onReorderTeam; // ← NEW
 
   const _LeftPanel({
     required this.tournamentCtrl,
@@ -314,6 +323,7 @@ class _LeftPanel extends StatelessWidget {
     required this.onAddTeam,
     required this.onRemoveTeam,
     required this.onUpdateTeam,
+    required this.onReorderTeam, // ← NEW
   });
 
   @override
@@ -350,8 +360,7 @@ class _LeftPanel extends StatelessWidget {
             final gIdx = e.key;
             final group = e.value;
             return _GroupAccordion(
-              // KEY is critical — forces rebuild with correct name when group list changes
-              key: ValueKey('group_$gIdx\_${group.groupName}'),
+              key: ValueKey('group_${gIdx}_${group.groupName}'),
               group: group,
               groupIndex: gIdx,
               isExpanded: expandedGroup == gIdx,
@@ -363,6 +372,8 @@ class _LeftPanel extends StatelessWidget {
               onAddTeam: () => onAddTeam(gIdx),
               onRemoveTeam: (tIdx) => onRemoveTeam(gIdx, tIdx),
               onUpdateTeam: (tIdx, t) => onUpdateTeam(gIdx, tIdx, t),
+              onReorderTeam: (oldIdx, newIdx) =>
+                  onReorderTeam(gIdx, oldIdx, newIdx), // ← NEW
             );
           }),
         ],
@@ -382,6 +393,7 @@ class _GroupAccordion extends StatefulWidget {
   final ValueChanged<String> onRename;
   final ValueChanged<int> onRemoveTeam;
   final void Function(int, TeamStanding) onUpdateTeam;
+  final void Function(int, int) onReorderTeam; // ← NEW
 
   const _GroupAccordion({
     super.key,
@@ -396,6 +408,7 @@ class _GroupAccordion extends StatefulWidget {
     required this.onAddTeam,
     required this.onRemoveTeam,
     required this.onUpdateTeam,
+    required this.onReorderTeam, // ← NEW
   });
 
   @override
@@ -414,7 +427,6 @@ class _GroupAccordionState extends State<_GroupAccordion> {
   @override
   void didUpdateWidget(_GroupAccordion oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Sync controller if group name changed externally (e.g. after Firestore load)
     if (oldWidget.group.groupName != widget.group.groupName &&
         _nameCtrl.text != widget.group.groupName) {
       _nameCtrl.text = widget.group.groupName;
@@ -438,6 +450,7 @@ class _GroupAccordionState extends State<_GroupAccordion> {
       ),
       child: Column(
         children: [
+          // ── Accordion header ──────────────────────────────
           GestureDetector(
             onTap: widget.onTap,
             child: Container(
@@ -500,6 +513,8 @@ class _GroupAccordionState extends State<_GroupAccordion> {
               ),
             ),
           ),
+
+          // ── Expanded body with reorderable team list ──────
           if (widget.isExpanded) ...[
             Container(height: 1, color: _border),
             Padding(
@@ -508,16 +523,49 @@ class _GroupAccordionState extends State<_GroupAccordion> {
                 children: [
                   _TeamRowHeader(),
                   const SizedBox(height: 8),
-                  ...widget.group.teams.asMap().entries.map((e) {
-                    return _TeamRowEditable(
-                      // KEY ensures row doesn't carry stale controller state when teams reorder
-                      key: ValueKey('team_${widget.groupIndex}_${e.key}'),
-                      team: e.value,
-                      index: e.key,
-                      onUpdate: (t) => widget.onUpdateTeam(e.key, t),
-                      onRemove: () => widget.onRemoveTeam(e.key),
-                    );
-                  }),
+
+                  // ── ReorderableListView for drag-to-reorder ──
+                  if (widget.group.teams.isNotEmpty)
+                    ReorderableListView.builder(
+                      // Must be shrinkWrap inside a Column/ScrollView
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: widget.group.teams.length,
+                      onReorder: widget.onReorderTeam,
+                      // Remove the default drag handle from the end
+                      buildDefaultDragHandles: false,
+                      // Subtle drag feedback styling
+                      proxyDecorator: (child, index, animation) {
+                        return Material(
+                          elevation: 0,
+                          color: Colors.transparent,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: _surface3,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: _red.withOpacity(0.4)),
+                            ),
+                            child: child,
+                          ),
+                        );
+                      },
+                      itemBuilder: (context, tIdx) {
+                        final team = widget.group.teams[tIdx];
+                        return _TeamRowEditable(
+                          // Key MUST be stable per team identity for reorder to work correctly
+                          key: ValueKey(
+                              'team_${widget.groupIndex}_${tIdx}_${team.name}'),
+                          team: team,
+                          index: tIdx,
+                          // Pass the reorder index so the drag handle
+                          // can register itself with ReorderableListView
+                          reorderIndex: tIdx,
+                          onUpdate: (t) => widget.onUpdateTeam(tIdx, t),
+                          onRemove: () => widget.onRemoveTeam(tIdx),
+                        );
+                      },
+                    ),
+
                   const SizedBox(height: 10),
                   GestureDetector(
                     onTap: widget.onAddTeam,
@@ -559,7 +607,8 @@ class _TeamRowHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const SizedBox(width: 28),
+        // Extra leading space to align with the drag handle
+        const SizedBox(width: 20),
         const SizedBox(width: 8),
         const Expanded(
           flex: 3,
@@ -575,7 +624,8 @@ class _TeamRowHeader extends StatelessWidget {
         _ColHead('L'),
         _ColHead('Pts'),
         _ColHead('NRR'),
-        const SizedBox(width: 24),
+        // Space for the remove button + drag handle
+        const SizedBox(width: 40),
       ],
     );
   }
@@ -597,10 +647,13 @@ class _ColHead extends StatelessWidget {
       );
 }
 
-// ── Team row (editable) — renamed to avoid clash ──────────
+// ════════════════════════════════════════════════════════════
+//  TEAM ROW — EDITABLE  (with drag handle)
+// ════════════════════════════════════════════════════════════
 class _TeamRowEditable extends StatefulWidget {
   final TeamStanding team;
   final int index;
+  final int reorderIndex; // ← NEW: index used by ReorderableDragStartListener
   final ValueChanged<TeamStanding> onUpdate;
   final VoidCallback onRemove;
 
@@ -608,6 +661,7 @@ class _TeamRowEditable extends StatefulWidget {
     super.key,
     required this.team,
     required this.index,
+    required this.reorderIndex,
     required this.onUpdate,
     required this.onRemove,
   });
@@ -638,7 +692,9 @@ class _TeamRowEditableState extends State<_TeamRowEditable> {
 
   @override
   void dispose() {
-    for (final c in [_name, _logo, _p, _w, _l, _pts, _nrr]) c.dispose();
+    for (final c in [_name, _logo, _p, _w, _l, _pts, _nrr]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -657,6 +713,7 @@ class _TeamRowEditableState extends State<_TeamRowEditable> {
   @override
   Widget build(BuildContext context) {
     return Container(
+      // No margin bottom here — ReorderableListView handles spacing
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
@@ -666,8 +723,28 @@ class _TeamRowEditableState extends State<_TeamRowEditable> {
       ),
       child: Column(
         children: [
+          // ── Row 1: logo + name + logo URL ─────────────────
           Row(
             children: [
+              // ── DRAG HANDLE (burger icon) ──────────────────
+              // ReorderableDragStartListener wraps only the handle icon.
+              // Dragging anywhere else on the row still works for text selection.
+              ReorderableDragStartListener(
+                index: widget.reorderIndex,
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.grab,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Icon(
+                      Icons.drag_indicator_rounded,
+                      color: _textDim,
+                      size: 18,
+                    ),
+                  ),
+                ),
+              ),
+
+              // Team logo preview circle
               Container(
                 width: 28,
                 height: 28,
@@ -701,9 +778,12 @@ class _TeamRowEditableState extends State<_TeamRowEditable> {
             ],
           ),
           const SizedBox(height: 8),
+
+          // ── Row 2: stats + remove button ──────────────────
           Row(
             children: [
-              const SizedBox(width: 36),
+              // Spacer to align under drag handle + logo
+              const SizedBox(width: 54),
               _NumField(ctrl: _p, hint: 'P', onChanged: (_) => _emit()),
               _NumField(ctrl: _w, hint: 'W', onChanged: (_) => _emit()),
               _NumField(ctrl: _l, hint: 'L', onChanged: (_) => _emit()),

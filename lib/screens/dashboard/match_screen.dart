@@ -11,7 +11,44 @@ const _textPrimary = Color(0xFFE8E8E8);
 const _textSecondary = Color(0xFF666666);
 const _textMuted = Color(0xFF444444);
 
-// ── Match Screen ───────────────────────────────────────────
+// ── Pitch type config ──────────────────────────────────────
+const _pitchTypes = ['batting', 'bowling', 'spin', 'balanced'];
+
+Color _pitchColor(String type) {
+  switch (type) {
+    case 'batting':
+      return Color(0xFF4FC3F7);
+    case 'bowling':
+      return Color(0xFFFF8A65);
+    case 'spin':
+      return Color(0xFFFFD54F);
+    case 'balanced':
+      return Color(0xFF81C784);
+    default:
+      return Color(0xFF666666);
+  }
+}
+
+IconData _pitchIcon(String type) {
+  switch (type) {
+    case 'batting':
+      return Icons.sports_cricket_rounded;
+    case 'bowling':
+      return Icons.trip_origin_rounded;
+    case 'spin':
+      return Icons.rotate_right_rounded;
+    case 'balanced':
+      return Icons.balance_rounded;
+    default:
+      return Icons.grass_rounded;
+  }
+}
+
+String _pitchLabel(String type) => type[0].toUpperCase() + type.substring(1);
+
+// ─────────────────────────────────────────────────────────────
+//  MatchScreen
+// ─────────────────────────────────────────────────────────────
 class MatchScreen extends StatefulWidget {
   const MatchScreen({super.key});
 
@@ -142,7 +179,9 @@ class _AddMatchButtonState extends State<_AddMatchButton> {
   }
 }
 
-// ── Add match form ─────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+//  Add Match Form
+// ─────────────────────────────────────────────────────────────
 class _AddMatchForm extends StatefulWidget {
   final VoidCallback onSaved;
   final VoidCallback onCancel;
@@ -153,12 +192,14 @@ class _AddMatchForm extends StatefulWidget {
 }
 
 class _AddMatchFormState extends State<_AddMatchForm> {
-  final _titleController = TextEditingController();
-  final _venueController = TextEditingController();
-  final _seriesController = TextEditingController(); // ← NEW
+  final _titleCtrl = TextEditingController();
+  final _venueCtrl = TextEditingController();
+  final _seriesCtrl = TextEditingController();
+  final _pitchNoteCtrl = TextEditingController(); // NEW
 
   String _format = 't20';
   String _status = 'upcoming';
+  String _pitchType = 'batting'; // NEW
   DateTime _matchDate = DateTime.now();
   TimeOfDay _matchTime = TimeOfDay.now();
   bool _saving = false;
@@ -169,9 +210,10 @@ class _AddMatchFormState extends State<_AddMatchForm> {
 
   @override
   void dispose() {
-    _titleController.dispose();
-    _venueController.dispose();
-    _seriesController.dispose(); // ← NEW
+    _titleCtrl.dispose();
+    _venueCtrl.dispose();
+    _seriesCtrl.dispose();
+    _pitchNoteCtrl.dispose();
     super.dispose();
   }
 
@@ -232,12 +274,10 @@ class _AddMatchFormState extends State<_AddMatchForm> {
   }
 
   Future<void> _save() async {
-    if (_titleController.text.trim().isEmpty ||
-        _venueController.text.trim().isEmpty) {
+    if (_titleCtrl.text.trim().isEmpty || _venueCtrl.text.trim().isEmpty) {
       setState(() => _error = 'Title and venue are required.');
       return;
     }
-
     setState(() {
       _saving = true;
       _error = null;
@@ -248,14 +288,16 @@ class _AddMatchFormState extends State<_AddMatchForm> {
           '${_matchDate.year}-${_matchDate.month.toString().padLeft(2, '0')}-${_matchDate.day.toString().padLeft(2, '0')}';
 
       await FeaturedMatchService.saveMatchMeta(
-        title: _titleController.text.trim(),
+        title: _titleCtrl.text.trim(),
         format: _format,
-        venue: _venueController.text.trim(),
-        series: _seriesController.text.trim(), // ← NEW
+        venue: _venueCtrl.text.trim(),
+        series: _seriesCtrl.text.trim(),
         matchDate: dateStr,
         matchTime: _formattedTime,
         status: _status,
         matchId: '',
+        pitchType: _pitchType, // NEW
+        pitchNote: _pitchNoteCtrl.text.trim(), // NEW
       );
 
       widget.onSaved();
@@ -298,14 +340,14 @@ class _AddMatchFormState extends State<_AddMatchForm> {
           ),
           const SizedBox(height: 20),
 
-          // ── Row 1: Title + Venue + Series ── (series added here)
+          // ── Row 1: Title + Venue + Series ──────────────
           Row(
             children: [
               Expanded(
                 child: _FormField(
                   label: 'Match Title',
-                  hint: 'e.g. IND vs PAK',
-                  controller: _titleController,
+                  hint: 'e.g. IND vs AUS',
+                  controller: _titleCtrl,
                   icon: Icons.title_rounded,
                 ),
               ),
@@ -314,16 +356,16 @@ class _AddMatchFormState extends State<_AddMatchForm> {
                 child: _FormField(
                   label: 'Venue',
                   hint: 'e.g. Wankhede Stadium',
-                  controller: _venueController,
+                  controller: _venueCtrl,
                   icon: Icons.stadium_rounded,
                 ),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: _FormField(
-                  label: 'Series', // ← NEW
+                  label: 'Series',
                   hint: 'e.g. Asia Cup 2025',
-                  controller: _seriesController,
+                  controller: _seriesCtrl,
                   icon: Icons.emoji_events_rounded,
                 ),
               ),
@@ -331,7 +373,7 @@ class _AddMatchFormState extends State<_AddMatchForm> {
           ),
           const SizedBox(height: 16),
 
-          // ── Row 2: Format + Status + Date + Time ──
+          // ── Row 2: Format + Status + Date + Time ───────
           Row(
             children: [
               Expanded(
@@ -374,6 +416,62 @@ class _AddMatchFormState extends State<_AddMatchForm> {
               ),
             ],
           ),
+          const SizedBox(height: 16),
+
+          // ── Row 3: Pitch Type + Pitch Note ─────────────
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Pitch type selector
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Pitch Type',
+                      style: TextStyle(
+                        color: _textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Row(
+                      children: _pitchTypes.map((type) {
+                        final sel = _pitchType == type;
+                        final color = _pitchColor(type);
+                        return Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.only(
+                                right: type == _pitchTypes.last ? 0 : 8),
+                            child: _PitchTypeChip(
+                              type: type,
+                              color: color,
+                              isSelected: sel,
+                              onTap: () => setState(() => _pitchType = type),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+
+              // Pitch note
+              Expanded(
+                child: _FormField(
+                  label: 'Pitch Note',
+                  hint: 'e.g. Flat surface, high scoring expected, dew likely',
+                  controller: _pitchNoteCtrl,
+                  icon: Icons.grass_rounded,
+                ),
+              ),
+            ],
+          ),
 
           if (_error != null) ...[
             const SizedBox(height: 14),
@@ -400,7 +498,6 @@ class _AddMatchFormState extends State<_AddMatchForm> {
           ],
 
           const SizedBox(height: 20),
-
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
@@ -410,6 +507,86 @@ class _AddMatchFormState extends State<_AddMatchForm> {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Pitch type chip ────────────────────────────────────────
+class _PitchTypeChip extends StatefulWidget {
+  final String type;
+  final Color color;
+  final bool isSelected;
+  final VoidCallback onTap;
+  const _PitchTypeChip({
+    required this.type,
+    required this.color,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  State<_PitchTypeChip> createState() => _PitchTypeChipState();
+}
+
+class _PitchTypeChipState extends State<_PitchTypeChip> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: widget.isSelected
+                ? widget.color.withOpacity(0.12)
+                : _hovered
+                    ? _surface2
+                    : _surface,
+            borderRadius: BorderRadius.circular(9),
+            border: Border.all(
+              color:
+                  widget.isSelected ? widget.color.withOpacity(0.45) : _border,
+              width: 1.5,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                _pitchIcon(widget.type),
+                size: 15,
+                color: widget.isSelected
+                    ? widget.color
+                    : _hovered
+                        ? _textSecondary
+                        : _textMuted,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _pitchLabel(widget.type),
+                style: TextStyle(
+                  color: widget.isSelected
+                      ? widget.color
+                      : _hovered
+                          ? _textSecondary
+                          : _textMuted,
+                  fontSize: 9,
+                  fontWeight:
+                      widget.isSelected ? FontWeight.w600 : FontWeight.w400,
+                ),
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -431,13 +608,10 @@ class _MatchList extends StatelessWidget {
                 color: Colors.redAccent, strokeWidth: 2),
           );
         }
-
         if (!snap.hasData || snap.data!.docs.isEmpty) {
           return _EmptyState();
         }
-
         final docs = snap.data!.docs;
-
         return ListView.separated(
           itemCount: docs.length,
           separatorBuilder: (_, __) => const SizedBox(height: 10),
@@ -449,10 +623,12 @@ class _MatchList extends StatelessWidget {
               title: meta['title'] ?? '—',
               format: meta['format'] ?? '—',
               venue: meta['venue'] ?? '—',
-              series: meta['series'] ?? '', // ← NEW
+              series: meta['series'] ?? '',
               matchDate: meta['matchDate'] ?? '—',
               matchTime: meta['matchTime'] ?? '',
               status: meta['status'] ?? 'upcoming',
+              pitchType: meta['pitchType'] ?? '', // NEW
+              pitchNote: meta['pitchNote'] ?? '', // NEW
             );
           },
         );
@@ -470,16 +646,21 @@ class _MatchCard extends StatefulWidget {
       series,
       matchDate,
       matchTime,
-      status; // ← series added
+      status,
+      pitchType,
+      pitchNote;
+
   const _MatchCard({
     required this.docId,
     required this.title,
     required this.format,
     required this.venue,
-    required this.series, // ← NEW
+    required this.series,
     required this.matchDate,
     required this.matchTime,
     required this.status,
+    required this.pitchType, // NEW
+    required this.pitchNote, // NEW
   });
 
   @override
@@ -509,6 +690,7 @@ class _MatchCardState extends State<_MatchCard> {
         ),
         child: Row(
           children: [
+            // Format badge
             Container(
               width: 52,
               height: 52,
@@ -530,6 +712,7 @@ class _MatchCardState extends State<_MatchCard> {
               ),
             ),
             const SizedBox(width: 16),
+
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -548,7 +731,6 @@ class _MatchCardState extends State<_MatchCard> {
                     spacing: 12,
                     runSpacing: 4,
                     children: [
-                      // ── Series shown first, highlighted ── (NEW)
                       if (widget.series.isNotEmpty)
                         _MetaChip(
                           icon: Icons.emoji_events_rounded,
@@ -568,11 +750,41 @@ class _MatchCardState extends State<_MatchCard> {
                           icon: Icons.access_time_rounded,
                           label: widget.matchTime,
                         ),
+                      // NEW — pitch type chip
+                      if (widget.pitchType.isNotEmpty)
+                        _MetaChip(
+                          icon: _pitchIcon(widget.pitchType),
+                          label: _pitchLabel(widget.pitchType),
+                          color: _pitchColor(widget.pitchType),
+                        ),
                     ],
                   ),
+                  // NEW — pitch note if present
+                  if (widget.pitchNote.isNotEmpty) ...[
+                    const SizedBox(height: 5),
+                    Row(
+                      children: [
+                        const Icon(Icons.grass_rounded,
+                            color: _textMuted, size: 11),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            widget.pitchNote,
+                            style: const TextStyle(
+                                color: _textMuted,
+                                fontSize: 11,
+                                fontStyle: FontStyle.italic),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
+
+            // Status badge
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
@@ -619,30 +831,33 @@ class _MatchCardState extends State<_MatchCard> {
   }
 }
 
-// ── Small meta chip ────────────────────────────────────────
+// ── Meta chip ──────────────────────────────────────────────
 class _MetaChip extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool highlight;
+  final Color? color;
+
   const _MetaChip({
     required this.icon,
     required this.label,
     this.highlight = false,
+    this.color,
   });
 
   @override
   Widget build(BuildContext context) {
+    final c = color ?? (highlight ? Colors.redAccent : null);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon,
-            color: highlight ? Colors.redAccent.withOpacity(0.7) : _textMuted,
-            size: 12),
+            color: c != null ? c.withOpacity(0.7) : _textMuted, size: 12),
         const SizedBox(width: 4),
         Text(
           label,
           style: TextStyle(
-            color: highlight ? const Color(0xFFBB9090) : _textSecondary,
+            color: c != null ? c.withOpacity(0.85) : _textSecondary,
             fontSize: 12,
           ),
         ),
@@ -705,7 +920,7 @@ class _DeleteButtonState extends State<_DeleteButton> {
   }
 }
 
-// ── Delete confirmation dialog ─────────────────────────────
+// ── Delete dialog ──────────────────────────────────────────
 class _DeleteDialog extends StatelessWidget {
   final String title;
   const _DeleteDialog({required this.title});
@@ -794,32 +1009,49 @@ class _DeleteDialog extends StatelessWidget {
 class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: _surface,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: _border),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final tight = constraints.maxHeight < 140;
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                if (!tight) ...[
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: _surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _border),
+                    ),
+                    child: const Icon(Icons.calendar_today_rounded,
+                        color: _textMuted, size: 20),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                const Text(
+                  'No matches yet',
+                  style: TextStyle(
+                      color: _textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Click "Add Match" to get started.',
+                  style: TextStyle(color: _textSecondary, fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
-            child: const Icon(Icons.calendar_today_rounded,
-                color: _textMuted, size: 26),
           ),
-          const SizedBox(height: 16),
-          const Text('No matches yet',
-              style: TextStyle(
-                  color: _textPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600)),
-          const SizedBox(height: 6),
-          const Text('Click "Add Match" to create your first match.',
-              style: TextStyle(color: _textSecondary, fontSize: 13)),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -829,6 +1061,7 @@ class _FormField extends StatefulWidget {
   final String label, hint;
   final TextEditingController controller;
   final IconData icon;
+
   const _FormField({
     required this.label,
     required this.hint,
@@ -989,7 +1222,6 @@ class _DateFieldState extends State<_DateField> {
   Widget build(BuildContext context) {
     final formatted =
         '${widget.date.year}-${widget.date.month.toString().padLeft(2, '0')}-${widget.date.day.toString().padLeft(2, '0')}';
-
     return _PickerField(
       label: widget.label,
       value: formatted,
@@ -1020,11 +1252,9 @@ class _TimeFieldState extends State<_TimeField> {
   Widget build(BuildContext context) {
     final h = widget.time.hour.toString().padLeft(2, '0');
     final m = widget.time.minute.toString().padLeft(2, '0');
-    final formatted = '$h:$m';
-
     return _PickerField(
       label: widget.label,
-      value: formatted,
+      value: '$h:$m',
       icon: Icons.access_time_rounded,
       hovered: _hovered,
       onEnter: () => setState(() => _hovered = true),

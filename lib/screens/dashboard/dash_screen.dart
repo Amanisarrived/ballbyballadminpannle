@@ -1,8 +1,23 @@
 import 'package:cricket_admin/provider/admin_auth_provider.dart';
+import 'package:cricket_admin/screens/dashboard/admin_correction_screen.dart';
+import 'package:cricket_admin/screens/dashboard/aipredictionscreen.dart';
+import 'package:cricket_admin/screens/dashboard/app_config_screen.dart';
+import 'package:cricket_admin/screens/dashboard/auto_scoring_screen.dart';
+import 'package:cricket_admin/screens/dashboard/cricspot_admin_screen.dart';
+import 'package:cricket_admin/screens/dashboard/dugout_screen.dart';
+import 'package:cricket_admin/screens/dashboard/fantasy_admin_screen.dart';
+import 'package:cricket_admin/screens/dashboard/fantasy_setup_screen.dart';
+import 'package:cricket_admin/screens/dashboard/fantasy_stats_screen.dart';
+import 'package:cricket_admin/screens/dashboard/match_alerts_screen.dart';
 import 'package:cricket_admin/screens/dashboard/match_screen.dart';
+import 'package:cricket_admin/screens/dashboard/meme_admin_screen.dart';
+import 'package:cricket_admin/screens/dashboard/news_admin_screen.dart';
 import 'package:cricket_admin/screens/dashboard/notification_screen.dart';
 import 'package:cricket_admin/screens/dashboard/player_screen.dart';
 import 'package:cricket_admin/screens/dashboard/pointstable_screen.dart';
+import 'package:cricket_admin/screens/dashboard/rankingscreen.dart';
+import 'package:cricket_admin/screens/dashboard/reaction_screen.dart';
+import 'package:cricket_admin/screens/dashboard/remote_config_screen.dart';
 import 'package:cricket_admin/screens/dashboard/scoring_pannel.dart';
 import 'package:cricket_admin/screens/dashboard/shop_banner_screen.dart';
 import 'package:cricket_admin/screens/dashboard/shops_screen.dart';
@@ -19,13 +34,22 @@ enum AdminSection {
   teams,
   players,
   scoring,
+  autoScoring,
+  matchAlerts,
   toss,
   upcomingFixtures,
   shopScreen,
   shopbannerscreen,
   winpredictor,
   pointsTable,
-  notifications, // TODO: implement notifications screen
+  notifications,
+  remoteconfig,
+  predictionScreen,
+  admincorrectionscreen,
+  dugoutScreen,
+  appconfig,
+  memesscreen,
+  news,
 }
 
 extension AdminSectionExt on AdminSection {
@@ -39,6 +63,10 @@ extension AdminSectionExt on AdminSection {
         return 'Players';
       case AdminSection.scoring:
         return 'Scoring Panel';
+      case AdminSection.autoScoring:
+        return 'Auto Scoring';
+      case AdminSection.matchAlerts:
+        return 'Match Alerts';
       case AdminSection.toss:
         return 'Toss Setup';
       case AdminSection.upcomingFixtures:
@@ -53,6 +81,20 @@ extension AdminSectionExt on AdminSection {
         return 'Points Table';
       case AdminSection.notifications:
         return 'Notifications';
+      case AdminSection.remoteconfig:
+        return 'Remote Config';
+      case AdminSection.predictionScreen:
+        return 'AI Prediction';
+      case AdminSection.admincorrectionscreen:
+        return 'Admin Correction';
+      case AdminSection.dugoutScreen:
+        return 'Dugout Moderation';
+      case AdminSection.appconfig:
+        return 'App Config';
+      case AdminSection.memesscreen:
+        return 'Memes';
+      case AdminSection.news:
+        return 'News';
     }
   }
 
@@ -66,6 +108,10 @@ extension AdminSectionExt on AdminSection {
         return Icons.person_rounded;
       case AdminSection.scoring:
         return Icons.sports_cricket_rounded;
+      case AdminSection.autoScoring:
+        return Icons.bolt_rounded;
+      case AdminSection.matchAlerts:
+        return Icons.notifications_active_rounded;
       case AdminSection.toss:
         return Icons.sports_score_rounded;
       case AdminSection.upcomingFixtures:
@@ -79,7 +125,21 @@ extension AdminSectionExt on AdminSection {
       case AdminSection.pointsTable:
         return Icons.table_chart_rounded;
       case AdminSection.notifications:
-        return Icons.notifications_rounded;
+        return Icons.emoji_events_rounded;
+      case AdminSection.remoteconfig:
+        return Icons.emoji_emotions_rounded;
+      case AdminSection.predictionScreen:
+        return Icons.smart_toy_rounded;
+      case AdminSection.admincorrectionscreen:
+        return Icons.admin_panel_settings_rounded;
+      case AdminSection.dugoutScreen:
+        return Icons.forum_rounded;
+      case AdminSection.appconfig:
+        return Icons.settings_rounded;
+      case AdminSection.memesscreen:
+        return Icons.mood_rounded;
+      case AdminSection.news:
+        return Icons.newspaper_rounded;
     }
   }
 
@@ -93,6 +153,10 @@ extension AdminSectionExt on AdminSection {
         return Icons.person_rounded;
       case AdminSection.scoring:
         return Icons.sports_cricket_rounded;
+      case AdminSection.autoScoring:
+        return Icons.bolt_rounded;
+      case AdminSection.matchAlerts:
+        return Icons.notifications_active_rounded;
       case AdminSection.toss:
         return Icons.sports_score_rounded;
       case AdminSection.upcomingFixtures:
@@ -107,6 +171,20 @@ extension AdminSectionExt on AdminSection {
         return Icons.table_chart_rounded;
       case AdminSection.notifications:
         return Icons.notifications_rounded;
+      case AdminSection.remoteconfig:
+        return Icons.tune_rounded;
+      case AdminSection.predictionScreen:
+        return Icons.smart_toy_rounded;
+      case AdminSection.admincorrectionscreen:
+        return Icons.admin_panel_settings_rounded;
+      case AdminSection.dugoutScreen:
+        return Icons.forum_rounded;
+      case AdminSection.appconfig:
+        return Icons.settings_rounded;
+      case AdminSection.memesscreen:
+        return Icons.mood_rounded;
+      case AdminSection.news:
+        return Icons.newspaper_rounded;
     }
   }
 }
@@ -174,7 +252,6 @@ class _DashScreenState extends State<DashScreen> {
                   textPrimary: _textPrimary,
                   textSecondary: _textSecondary,
                 ),
-                // Body
                 Expanded(
                   child: _ContentArea(section: _selected),
                 ),
@@ -327,15 +404,15 @@ class _Sidebar extends StatelessWidget {
           Divider(color: border, height: 1, thickness: 1),
           const SizedBox(height: 12),
 
-          // ── Nav items ──
+          // ── Nav items — ListView to prevent overflow ──
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Column(
+              child: ListView(
+                physics: const ClampingScrollPhysics(),
                 children: AdminSection.values.map((section) {
                   final isSelected = selected == section;
 
-                  // Scoring panel gets a special treatment
                   if (section == AdminSection.scoring) {
                     return Column(
                       children: [
@@ -459,7 +536,6 @@ class _NavItemState extends State<_NavItem> {
                 ),
                 if (widget.collapsed) const SizedBox(width: 6),
 
-                // Icon
                 Icon(
                   widget.section.icon,
                   size: 18,
@@ -470,7 +546,6 @@ class _NavItemState extends State<_NavItem> {
                           : widget.textSecondary,
                 ),
 
-                // Label
                 if (!widget.collapsed) ...[
                   const SizedBox(width: 12),
                   Expanded(
@@ -603,7 +678,6 @@ class _SidebarFooter extends StatelessWidget {
             )
           : Row(
               children: [
-                // Avatar
                 Container(
                   width: 32,
                   height: 32,
@@ -717,7 +791,7 @@ class _LogoutDialog extends StatelessWidget {
       backgroundColor: const Color(0xFF141414),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: const Color(0xFF232323)),
+        side: const BorderSide(color: Color(0xFF232323)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(28),
@@ -792,7 +866,6 @@ class _LogoutDialog extends StatelessWidget {
   }
 }
 
-// ── Top bar ────────────────────────────────────────────────
 class _TopBar extends StatelessWidget {
   final AdminSection section;
   final bool isNarrow;
@@ -828,7 +901,6 @@ class _TopBar extends StatelessWidget {
             ),
             const SizedBox(width: 8),
           ],
-          // Page title
           Text(
             section.label,
             style: TextStyle(
@@ -876,7 +948,6 @@ class _TopBar extends StatelessWidget {
             ),
           ],
           const Spacer(),
-          // Right side — admin badge
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
@@ -930,6 +1001,8 @@ class _ContentArea extends StatelessWidget {
         return const TossScreen();
       case AdminSection.scoring:
         return const ScoringPanel();
+      case AdminSection.autoScoring:
+        return const AutoScoringScreen();
       case AdminSection.upcomingFixtures:
         return const UpcomingFixturesScreen();
       case AdminSection.shopScreen:
@@ -942,6 +1015,22 @@ class _ContentArea extends StatelessWidget {
         return const PointsTableScreen();
       case AdminSection.notifications:
         return const NotificationScreen();
+      case AdminSection.remoteconfig:
+        return const RemoteConfigScreen();
+      case AdminSection.predictionScreen:
+        return const AiPredictionScreen();
+      case AdminSection.admincorrectionscreen:
+        return const AdminCorrectionScreen();
+      case AdminSection.dugoutScreen:
+        return const DugoutAdminScreen();
+      case AdminSection.appconfig:
+        return const AppConfigScreen();
+      case AdminSection.memesscreen:
+        return const MemeAdminScreen();
+      case AdminSection.news:
+        return const NewsAdminScreen();
+      case AdminSection.matchAlerts:
+        return const MatchAlertsScreen();
     }
   }
 }

@@ -19,6 +19,9 @@ dependencies:
   cupertino_icons: ^1.0.2
   intl: ^0.20.2
   provider: ^6.1.5+1
+  firebase_app_check: ^0.3.2+10
+  http: ^1.6.0
+  firebase_database: ^11.3.10
 
 dev_dependencies:
   flutter_test:
