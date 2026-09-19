@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cricket_admin/services/auto_scoring_service.dart';
 import 'package:firebase_database/firebase_database.dart';
 
 /// Firestore `news`, filled from Cricbuzz by the worker (doc id `cbz_<id>`).
@@ -10,7 +11,7 @@ class NewsAdminService {
 
   /// Same control block as auto scoring; the worker reads `newsEnabled`.
   static DatabaseReference get _control =>
-      FirebaseDatabase.instance.ref('featured_match/admin_current/autoScore');
+      FirebaseDatabase.instance.ref(AutoScoringService.controlPath);
 
   static Stream<List<NewsItem>> stream({int limit = 100}) => _col
       .orderBy('publishedAt', descending: true)

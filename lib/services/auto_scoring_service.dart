@@ -4,10 +4,11 @@ import 'package:firebase_database/firebase_database.dart';
 ///
 /// The worker polls Cricbuzz and writes into the same RTDB paths the manual
 /// scoring panel uses. Everything here is just the control block it reads:
-/// `featured_match/admin_current/autoScore`.
+/// `auto_score` (kept outside the match node, which every app user downloads).
 class AutoScoringService {
-  static DatabaseReference get _ref =>
-      FirebaseDatabase.instance.ref('featured_match/admin_current/autoScore');
+  static const controlPath = 'auto_score';
+
+  static DatabaseReference get _ref => FirebaseDatabase.instance.ref(controlPath);
 
   /// Sections the worker writes. Locking one hands it back to manual control.
   static const sections = <String>[
